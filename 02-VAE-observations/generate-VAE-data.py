@@ -7,7 +7,7 @@ from gym.envs.box2d import CarRacing
 _BATCH_SIZE = 16
 _NUM_BATCHES = 16
 _TIME_STEPS = 150
-_RENDER = False
+_RENDER = True
 
 def generate_action(prev_action):
     if np.random.randint(3) % 3:
@@ -42,6 +42,7 @@ def simulate_batch(batch_num):
         position = np.random.randint(len(env.track))
         env.car = Car(env.world, *env.track[position][1:4])
         observation = normalize_observation(observation)
+        # print(observation)
 
         obs_sequence = []
         action_sequence = []
@@ -55,15 +56,12 @@ def simulate_batch(batch_num):
             observation, reward, done, info = env.step(action)
             observation = normalize_observation(observation)
 
-            obs_sequence.append(observation)
-            action_sequence.append(action)
-
-        obs_data.append(obs_sequence)
-        action_data.append(action_sequence)
+            obs_data.append(observation)
+            action_data.append(action)
 
     print("Saving dataset for batch {}".format(batch_num))
-    np.save('data/obs_data_VAE_{}'.format(batch_num), obs_data)
-    # np.save('action_data_VAE_{}'.format(batch_num), action_data)
+    np.save('../data/obs_data_VAE_{}'.format(batch_num), obs_data)
+    np.save('../data/action_data_VAE_{}'.format(batch_num), action_data)
 
     env.close()
 
