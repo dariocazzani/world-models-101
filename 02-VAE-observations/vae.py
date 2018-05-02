@@ -1,9 +1,12 @@
 import tensorflow as tf
 import numpy as np
-import glob, random
+import glob, random, os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+model_path = "saved_models/"
+model_name = model_path + 'model'
 
 class Network(object):
-
 	# Create model
 	def __init__(self):
 		self.image = tf.placeholder(tf.float32, [None, 96, 96, 3], name='image')
@@ -67,12 +70,7 @@ def data_iterator(batch_size):
 		start = np.random.randint(0, N-batch_size)
 		yield data[start:start+batch_size]
 
-if __name__ == '__main__':
-	model_path = "saved_models/"
-	model_name = model_path + 'model'
-
-	data = np.load('../data/obs_data_VAE_0.npy')
-
+def train_vae():
 	sess = tf.InteractiveSession()
 
 	global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -86,7 +84,6 @@ if __name__ == '__main__':
 	saver = tf.train.Saver(max_to_keep=1)
 	step = global_step.eval()
 	training_data = data_iterator(batch_size=128)
-
 
 	try:
 		saver.restore(sess, tf.train.latest_checkpoint(model_path))
@@ -113,3 +110,30 @@ if __name__ == '__main__':
 
 	except Exception as e:
 		print("Exception: {}".format(e))
+
+def load_vae():
+
+	graph = tf.Graph()
+	with graph.as_default():
+		config = tf.ConfigProto()
+		config.gpu_options.allow_growth = True
+		sess = tf.Session(config=config, graph=graph)
+		# sess = tf.InteractiveSession()
+
+		network = Network()
+		init = tf.global_variables_initializer()
+		sess.run(init)
+
+		saver = tf.train.Saver(max_to_keep=1)
+		training_data = data_iterator(batch_size=128)
+
+		try:
+			saver.restore(sess, tf.train.latest_checkpoint(model_path))
+			# print("Model restored from: {}".format(model_path))
+		except:
+			raise ImportError("Could not restore saved model")
+
+		return sess, network
+
+if __name__ == '__main__':
+	train_vae()
