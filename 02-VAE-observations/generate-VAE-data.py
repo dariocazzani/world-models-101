@@ -1,14 +1,13 @@
 import numpy as np
-import random, tqdm
 import multiprocessing as mp
 import gym
 from gym.envs.box2d.car_dynamics import Car
 from gym.envs.box2d import CarRacing
 
-_BATCH_SIZE = 128
-_NUM_BATCHES = 20
-_TIME_STEPS = 300
-_RENDER = True
+_BATCH_SIZE = 16
+_NUM_BATCHES = 16
+_TIME_STEPS = 150
+_RENDER = False
 
 def generate_action(prev_action):
     if np.random.randint(3) % 3:
@@ -37,7 +36,6 @@ def simulate_batch(batch_num):
     obs_data = []
     action_data = []
     action = env.action_space.sample()
-    print(batch_num)
     for i_episode in range(_BATCH_SIZE):
         observation = env.reset()
         # Little hack to make the Car start at random positions in the race-track
@@ -45,41 +43,35 @@ def simulate_batch(batch_num):
         env.car = Car(env.world, *env.track[position][1:4])
         observation = normalize_observation(observation)
 
-        steps = 0
         obs_sequence = []
         action_sequence = []
 
-        while steps < _TIME_STEPS:
+        for _ in range(_TIME_STEPS):
             if _RENDER:
                 env.render()
 
-            steps += 1
-
             action = generate_action(action)
-
-            obs_sequence.append(observation)
-            action_sequence.append(action)
 
             observation, reward, done, info = env.step(action)
             observation = normalize_observation(observation)
 
+            obs_sequence.append(observation)
+            action_sequence.append(action)
+
         obs_data.append(obs_sequence)
         action_data.append(action_sequence)
 
-        print("Batch {} Episode {} finished after {} timesteps".format(batch_num, i_episode, steps+1))
-        print("Current dataset contains {} observations".format(sum(map(len, obs_data))))
-
     print("Saving dataset for batch {}".format(batch_num))
-    np.save('./data/obs_data_VAE_{}'.format(batch_num), obs_data)
-    np.save('./data/action_data_VAE_{}'.format(batch_num), action_data)
+    np.save('data/obs_data_VAE_{}'.format(batch_num), obs_data)
+    # np.save('action_data_VAE_{}'.format(batch_num), action_data)
+
+    env.close()
 
 def main():
     print("Generating data for env CarRacing-v0")
 
     with mp.Pool(mp.cpu_count()) as p:
-        tqdm.tqdm(p.map(simulate_batch, range(_NUM_BATCHES)), total=_NUM_BATCHES)
-
-    env.close()
+        p.map(simulate_batch, range(_NUM_BATCHES))
 
 if __name__ == "__main__":
     main()
