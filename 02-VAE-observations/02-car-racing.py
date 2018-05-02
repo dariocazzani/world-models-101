@@ -76,7 +76,7 @@ def train():
 	try:
 		while not es.stop():
 			solutions = es.ask()
-			with mp.Pool(mp.cpu_count()*2) as p:
+			with mp.Pool(mp.cpu_count()) as p:
 				rewards = list(p.map(play, list(solutions)))
 			print("rewards: {}".format(sorted(rewards)))
 			es.tell(solutions, rewards)
