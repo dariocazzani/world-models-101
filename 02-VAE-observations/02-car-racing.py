@@ -82,7 +82,7 @@ def play(params, render=True, verbose=False):
 				break
 		agent_reward += total_reward
 
-	return - agent_reward
+	return - (agent_reward / _NUM_TRIALS)
 
 def train():
 	es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 64})
@@ -92,7 +92,7 @@ def train():
 			with mp.Pool(mp.cpu_count()) as p:
 				rewards = list(p.map(play, list(solutions)))
 
-			print("Min and Max: rewards: {}".format(np.min(rewards), np.max(rewards)))
+			print("Min and Max: rewards: {} - {}".format(np.min(rewards), np.max(rewards)))
 			print("**************")
 			print("Avarage rewards: {}".format(np.mean(rewards)))
 			print("**************")
