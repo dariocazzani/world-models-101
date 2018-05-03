@@ -18,16 +18,17 @@ from vae import load_vae
 # Num controllers: 3
 # Bias: 1
 _EMBEDDING_SIZE = 32
+_NUM_PREDICTIONS = 2
 _NUM_ACTIONS = 3
-_NUM_PARAMS = _NUM_ACTIONS * _EMBEDDING_SIZE + _NUM_ACTIONS
+_NUM_PARAMS = _NUM_PREDICTIONS * _EMBEDDING_SIZE + _NUM_PREDICTIONS
 
 def normalize_observation(obs):
 	return obs.astype('float32') / 255.
 
 def get_weights_bias(params):
-	weights = params[:_NUM_PARAMS - _NUM_ACTIONS]
-	bias = params[-_NUM_ACTIONS:]
-	weights = np.reshape(weights, [_EMBEDDING_SIZE, _NUM_ACTIONS])
+	weights = params[:_NUM_PARAMS - _NUM_PREDICTIONS]
+	bias = params[-_NUM_PREDICTIONS:]
+	weights = np.reshape(weights, [_EMBEDDING_SIZE, _NUM_PREDICTIONS])
 	return weights, bias
 
 def decide_action(sess, network, observation, params):
@@ -35,50 +36,67 @@ def decide_action(sess, network, observation, params):
 	embedding = sess.run(network.z, feed_dict={network.image: observation[None, :,  :,  :]})
 	weights, bias = get_weights_bias(params)
 
-	action = np.matmul(np.squeeze(embedding), weights) + bias
-	action = np.tanh(action)
-	action[1] = (action[1] + 1) / 2
-	action[2] = (action[2] + 1) / 2
+	action = np.zeros(_NUM_ACTIONS)
+	prediction = np.matmul(np.squeeze(embedding), weights) + bias
+	prediction = np.tanh(prediction)
+
+	action[0] = prediction[0]
+	if prediction[1] < 0:
+		action[1] = np.abs(prediction[1])
+		action[2] = 0
+	else:
+		action[2] = prediction[1]
+		action[1] = 0
+
 	return action
 
 env = CarRacing()
 
-def play(params, render=True, verbose=True):
+def play(params, render=True, verbose=False):
 	sess, network = load_vae()
-	observation = env.reset()
-	# Little hack to make the Car start at random positions in the race-track
-	np.random.seed(int(str(time.time()*1000000)[10:13]))
-	position = np.random.randint(len(env.track))
-	env.car = Car(env.world, *env.track[position][1:4])
+	_NUM_TRIALS = 16
+	agent_reward = 0
+	for trial in range(_NUM_TRIALS):
+		observation = env.reset()
+		# Little hack to make the Car start at random positions in the race-track
+		np.random.seed(int(str(time.time()*1000000)[10:13]))
+		position = np.random.randint(len(env.track))
+		env.car = Car(env.world, *env.track[position][1:4])
 
-	total_reward = 0.0
-	steps = 0
-	while True:
-		if render:
-			env.render()
-		action = decide_action(sess, network, observation, params)
-		observation, r, done, info = env.step(action)
-		total_reward += r
-		# NB: done is not True after 1000 steps when using the hack above for
-		# 	  random init of position
-		if verbose and (steps % 200 == 0 or steps == 999):
-			print("\naction " + str(["{:+0.2f}".format(x) for x in action]))
-			print("step {} total_reward {:+0.2f}".format(steps, total_reward))
+		total_reward = 0.0
+		steps = 0
+		while True:
+			if render:
+				env.render()
+			action = decide_action(sess, network, observation, params)
+			observation, r, done, info = env.step(action)
+			total_reward += r
+			# NB: done is not True after 1000 steps when using the hack above for
+			# 	  random init of position
+			if verbose and (steps % 200 == 0 or steps == 999):
+				print("\naction " + str(["{:+0.2f}".format(x) for x in action]))
+				print("step {} total_reward {:+0.2f}".format(steps, total_reward))
 
-		steps += 1
-		if steps == 999:
-			break
+			steps += 1
+			if steps == 999:
+				break
+		agent_reward += total_reward
 
-	return - total_reward
+	return - agent_reward
 
 def train():
-	es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 56})
+	es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 64})
 	try:
 		while not es.stop():
 			solutions = es.ask()
 			with mp.Pool(mp.cpu_count()) as p:
 				rewards = list(p.map(play, list(solutions)))
-			print("rewards: {}".format(sorted(rewards)))
+
+			print("Min and Max: rewards: {}".format(np.min(rewards), np.max(rewards)))
+			print("**************")
+			print("Avarage rewards: {}".format(np.mean(rewards)))
+			print("**************")
+
 			es.tell(solutions, rewards)
 	except (KeyboardInterrupt, SystemExit):
 		print("Manual Interrupt")
