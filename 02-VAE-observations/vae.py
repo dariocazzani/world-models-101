@@ -33,8 +33,8 @@ class Network(object):
 		x = tf.layers.conv2d(x, filters=32, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
 		# x = tf.layers.dropout(x, rate=self.keep_prob, training=self.is_training)
 		x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
-		x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
 		x = tf.layers.conv2d(x, filters=128, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
+		x = tf.layers.conv2d(x, filters=256, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
 
 		x = tf.layers.flatten(x)
 		z_mu = tf.layers.dense(x, units=32, name='z_mu')
@@ -44,7 +44,7 @@ class Network(object):
 	def decoder(self, z):
 		x = tf.layers.dense(z, 1024, activation=None)
 		x = tf.reshape(x, [-1, 1, 1, 1024])
-		x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=5, strides=2, padding='valid', activation=tf.nn.relu)
+		x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=5, strides=2, padding='valid', activation=tf.nn.relu)
 		# x = tf.nn.dropout(x, keep_prob)
 		x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=5, strides=2, padding='valid', activation=tf.nn.relu)
 		x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=6, strides=2, padding='valid', activation=tf.nn.relu)
@@ -55,14 +55,23 @@ class Network(object):
 		logits_flat = tf.layers.flatten(self.reconstructions)
 		labels_flat = tf.layers.flatten(self.resized_image)
 		# reconstruction_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits_flat, labels=labels_flat), 1)
-		reconstruction_loss = 10 * tf.reduce_sum(tf.square(logits_flat - labels_flat), axis = 1)
-		kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
+		reconstruction_loss = tf.reduce_sum(tf.square(logits_flat - labels_flat), axis = 1)
+		kl_loss = tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
 		vae_loss = tf.reduce_mean(reconstruction_loss + kl_loss)
 		return vae_loss
 
 def data_iterator(batch_size):
 	data_files = glob.glob('../data/obs_data_VAE_*')
+	num_samples = 2400*len(data_files)
+	num_iter = int(num_samples / batch_size)
+	step = 0
+	epoch = 0
 	while True:
+		step+=1
+		if num_iter == step:
+			print("Epoch: {}".format(epoch))
+			epoch+=1
+			step=0
 		data = np.load(random.sample(data_files, 1)[0])
 		np.random.shuffle(data)
 		np.random.shuffle(data)
@@ -95,7 +104,7 @@ def train_vae():
 		while True:
 			images = next(training_data)
 			_, loss_value, summary = sess.run([train_op, network.loss, network.merged],
-								feed_dict={network.image: data})
+								feed_dict={network.image: images})
 			writer.add_summary(summary, step)
 
 			if np.isnan(loss_value):
