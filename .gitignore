@@ -3,3 +3,4 @@ __pycache__/
 logdir/
 saved_models
 *npy
+gym
