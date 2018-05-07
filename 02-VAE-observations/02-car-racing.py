@@ -117,8 +117,8 @@ def train():
 
 if __name__ == '__main__':
 	es = train()
+	np.save('best_params', es.best.get()[0])
 	input("Press space to play... ")
 	RENDER = True
 	score = play(es.best.get()[0], render=RENDER, verbose=True)
-	np.save('best_params', es.best.get()[0])
 	print("Final Score: {}".format(-score))
